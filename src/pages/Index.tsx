@@ -25,6 +25,8 @@ const Index = () => {
   const [activePaths, setActivePaths] = useState<string[]>([]);
   const [quizResults, setQuizResults] = useState<CareerResults | null>(null);
   const [playerStats, setPlayerStats] = useState({ coins: 0, level: 1, powerUps: [] });
+  const [pathScores, setPathScores] = useState<Record<string, number>>({});
+  const [dominantPath, setDominantPath] = useState<string>('');
   const { toast } = useToast();
 
   const handleStartQuiz = () => {
@@ -32,9 +34,23 @@ const Index = () => {
     setCurrentQuestion(1);
     setActivePaths([]);
     setPlayerStats({ coins: 0, level: 1, powerUps: [] });
+    setPathScores({});
+    setDominantPath('');
   };
 
   const handleAnswerSelect = (answer: Option, questionId: number) => {
+    // Update path scores
+    const newPathScores = { ...pathScores };
+    answer.careerPaths.forEach(path => {
+      newPathScores[path] = (newPathScores[path] || 0) + answer.points;
+    });
+    setPathScores(newPathScores);
+    
+    // Find dominant path
+    const sortedPaths = Object.entries(newPathScores).sort(([,a], [,b]) => b - a);
+    const newDominantPath = sortedPaths[0]?.[0] || '';
+    setDominantPath(newDominantPath);
+    
     // Activate paths based on answer
     const newActivePaths = Array.from(new Set([...activePaths, ...answer.careerPaths]));
     setActivePaths(newActivePaths);
@@ -47,8 +63,8 @@ const Index = () => {
     }));
     
     toast({
-      title: "Great Answer! 🎉",
-      description: `+${answer.points} coins earned!`,
+      title: `Moving towards ${newDominantPath}! 🎯`,
+      description: `+${answer.points} points earned!`,
     });
     
     // Move to next question
@@ -68,6 +84,8 @@ const Index = () => {
     setActivePaths([]);
     setQuizResults(null);
     setPlayerStats({ coins: 0, level: 1, powerUps: [] });
+    setPathScores({});
+    setDominantPath('');
   };
 
   const handleCoinCollect = () => {
@@ -102,6 +120,8 @@ const Index = () => {
           currentQuestion={currentQuestion}
           totalQuestions={5}
           activePaths={activePaths}
+          dominantPath={dominantPath}
+          pathScores={pathScores}
           onCoinCollect={handleCoinCollect}
           onPowerUpCollect={handlePowerUpCollect}
         />

@@ -351,6 +351,8 @@ interface GameWorldProps {
   currentQuestion: number;
   totalQuestions: number;
   activePaths: string[];
+  dominantPath: string;
+  pathScores: Record<string, number>;
   onPathSelect?: (pathId: string) => void;
   onCoinCollect?: () => void;
   onPowerUpCollect?: (type: string) => void;
@@ -360,6 +362,8 @@ export default function GameWorld({
   currentQuestion, 
   totalQuestions, 
   activePaths,
+  dominantPath,
+  pathScores,
   onPathSelect,
   onCoinCollect,
   onPowerUpCollect
@@ -372,31 +376,67 @@ export default function GameWorld({
   
   // Calculate progress and update student position
   useEffect(() => {
-    const progress = currentQuestion / totalQuestions;
-    const angle = (progress * Math.PI * 2) + Math.PI / 4; // Start from front-right
-    const radius = progress * 4;
+    if (dominantPath && careerPaths[dominantPath]) {
+      const progress = currentQuestion / totalQuestions;
+      const pathDirection = careerPaths[dominantPath].direction;
+      const distance = progress * 8; // Maximum distance along path
+      
+      setStudentPosition([
+        pathDirection[0] * distance,
+        0,
+        pathDirection[2] * distance
+      ]);
+    } else {
+      setStudentPosition([0, 0, 0]); // Stay at center if no dominant path
+    }
     
-    setStudentPosition([
-      Math.cos(angle) * radius,
-      0,
-      Math.sin(angle) * radius
-    ]);
-    
-    setLevel(Math.floor(progress * 5) + 1);
-  }, [currentQuestion, totalQuestions]);
+    setLevel(Math.floor((currentQuestion / totalQuestions) * 5) + 1);
+  }, [currentQuestion, totalQuestions, dominantPath]);
 
-  // Career islands positions
-  const careerIslands: Array<{ 
+  // Career paths - radiating from center like spokes
+  const careerPaths: Record<string, {
     id: string; 
     type: 'tech' | 'healthcare' | 'arts' | 'business' | 'science'; 
-    position: [number, number, number] 
-  }> = [
-    { id: 'tech', type: 'tech', position: [6, 0, 0] },
-    { id: 'healthcare', type: 'healthcare', position: [3, 0, 5] },
-    { id: 'arts', type: 'arts', position: [-3, 0, 5] },
-    { id: 'business', type: 'business', position: [-6, 0, 0] },
-    { id: 'science', type: 'science', position: [0, 0, 6] },
-  ];
+    direction: [number, number, number];
+    goalPosition: [number, number, number];
+    color: string;
+  }> = {
+    'tech': { 
+      id: 'tech', 
+      type: 'tech', 
+      direction: [1, 0, 0], 
+      goalPosition: [10, 0, 0],
+      color: '#3B82F6'
+    },
+    'healthcare': { 
+      id: 'healthcare', 
+      type: 'healthcare', 
+      direction: [0.6, 0, 0.8], 
+      goalPosition: [6, 0, 8],
+      color: '#10B981'
+    },
+    'arts': { 
+      id: 'arts', 
+      type: 'arts', 
+      direction: [-0.6, 0, 0.8], 
+      goalPosition: [-6, 0, 8],
+      color: '#8B5CF6'
+    },
+    'business': { 
+      id: 'business', 
+      type: 'business', 
+      direction: [-1, 0, 0], 
+      goalPosition: [-10, 0, 0],
+      color: '#F59E0B'
+    },
+    'science': { 
+      id: 'science', 
+      type: 'science', 
+      direction: [0, 0, 1], 
+      goalPosition: [0, 0, 10],
+      color: '#06B6D4'
+    },
+  };
 
   // Collectible coins positions
   const coinPositions: Array<[number, number, number]> = [
@@ -469,17 +509,68 @@ export default function GameWorld({
           level={level}
         />
         
-        {/* Career Islands */}
-        {careerIslands.map((island) => (
+        {/* Career Goal Destinations */}
+        {Object.values(careerPaths).map((path) => (
           <CareerIsland
-            key={island.id}
-            position={island.position}
-            type={island.type}
-            isActive={activePaths.includes(island.id)}
-            isUnlocked={currentQuestion >= 2 || island.id === 'tech'} // Unlock progressively
-            onClick={() => onPathSelect?.(island.id)}
+            key={path.id}
+            position={path.goalPosition}
+            type={path.type}
+            isActive={dominantPath === path.id}
+            isUnlocked={activePaths.includes(path.id)}
+            onClick={() => onPathSelect?.(path.id)}
           />
         ))}
+        
+        {/* Career Paths - Visual Roads */}
+        {Object.values(careerPaths).map((path) => {
+          const isActive = activePaths.includes(path.id);
+          const isDominant = dominantPath === path.id;
+          const pathIntensity = pathScores[path.id] || 0;
+          
+          // Create path segments
+          const segments = Array.from({ length: 20 }, (_, i) => {
+            const progress = (i + 1) / 20;
+            const position: [number, number, number] = [
+              path.direction[0] * progress * 10,
+              0.05,
+              path.direction[2] * progress * 10
+            ];
+            
+            return (
+              <Box
+                key={`${path.id}-segment-${i}`}
+                args={[0.5, 0.1, 0.5]}
+                position={position}
+              >
+                <meshStandardMaterial 
+                  color={isActive ? path.color : '#666'} 
+                  emissive={isDominant ? path.color : '#000000'}
+                  emissiveIntensity={isDominant ? 0.3 : 0}
+                  transparent
+                  opacity={isActive ? 0.8 : 0.3}
+                />
+              </Box>
+            );
+          });
+          
+          return (
+            <group key={`path-${path.id}`}>
+              {segments}
+              {/* Path Score Display */}
+              {isActive && (
+                <Text
+                  fontSize={0.4}
+                  position={[path.direction[0] * 5, 1.5, path.direction[2] * 5]}
+                  color={path.color}
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  {path.id.toUpperCase()}: {pathIntensity}pts
+                </Text>
+              )}
+            </group>
+          );
+        })}
         
         {/* Collectible Coins */}
         {coinPositions.map((position, index) => (
@@ -502,24 +593,22 @@ export default function GameWorld({
           />
         ))}
         
-        {/* Path Connections */}
-        {activePaths.map((pathId) => {
-          const island = careerIslands.find(i => i.id === pathId);
-          if (!island) return null;
-          
-          const start = new THREE.Vector3(0, 0.1, 0);
-          const end = new THREE.Vector3(...island.position);
-          const distance = start.distanceTo(end);
+        {/* Progress Markers on Dominant Path */}
+        {dominantPath && Array.from({ length: currentQuestion }, (_, i) => {
+          const path = careerPaths[dominantPath];
+          const progress = (i + 1) / totalQuestions;
+          const markerPosition: [number, number, number] = [
+            path.direction[0] * progress * 8,
+            0.5,
+            path.direction[2] * progress * 8
+          ];
           
           return (
-            <Box 
-              key={`path-${pathId}`}
-              args={[0.1, 0.1, distance]} 
-              position={[end.x / 2, 0.2, end.z / 2]}
-              rotation={[0, -Math.atan2(end.z, end.x), 0]}
-            >
-              <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.3} />
-            </Box>
+            <Float key={`marker-${i}`} speed={3} rotationIntensity={0.5}>
+              <Sphere args={[0.2]} position={markerPosition}>
+                <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.5} />
+              </Sphere>
+            </Float>
           );
         })}
         
@@ -541,7 +630,18 @@ export default function GameWorld({
           anchorX="center"
           anchorY="middle"
         >
-          Collect coins and power-ups on your career journey!
+          Choose your path wisely - you're heading towards {dominantPath || 'your future'}!
+        </Text>
+        
+        {/* Starting Platform Sign */}
+        <Text
+          fontSize={0.4}
+          position={[0, 2, 0]}
+          color="#333"
+          anchorX="center"
+          anchorY="middle"
+        >
+          🎓 START YOUR JOURNEY
         </Text>
         
         {/* Controls */}

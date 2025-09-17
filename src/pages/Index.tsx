@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import CareerScene3D from '@/components/CareerScene3D';
+import GameWorld from '@/components/GameWorld';
 import QuizInterface from '@/components/QuizInterface';
 import ResultsDashboard from '@/components/ResultsDashboard';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 
 interface Option {
   text: string;
@@ -22,14 +23,15 @@ const Index = () => {
   const [gameState, setGameState] = useState<'welcome' | 'quiz' | 'results'>('welcome');
   const [currentQuestion, setCurrentQuestion] = useState(1);
   const [activePaths, setActivePaths] = useState<string[]>([]);
-  const [studentPosition, setStudentPosition] = useState<[number, number, number]>([0, 0, 0]);
   const [quizResults, setQuizResults] = useState<CareerResults | null>(null);
+  const [playerStats, setPlayerStats] = useState({ coins: 0, level: 1, powerUps: [] });
+  const { toast } = useToast();
 
   const handleStartQuiz = () => {
     setGameState('quiz');
     setCurrentQuestion(1);
     setActivePaths([]);
-    setStudentPosition([0, 0, 0]);
+    setPlayerStats({ coins: 0, level: 1, powerUps: [] });
   };
 
   const handleAnswerSelect = (answer: Option, questionId: number) => {
@@ -37,19 +39,17 @@ const Index = () => {
     const newActivePaths = Array.from(new Set([...activePaths, ...answer.careerPaths]));
     setActivePaths(newActivePaths);
     
-    // Move student forward (simulate progress toward dominant career path)
-    const dominantPath = newActivePaths[0]; // Simplified - would be more complex in real implementation
-    const pathPositions = {
-      'tech': [1, 0, 0],
-      'healthcare': [0.5, 0, 0.8],
-      'arts': [-0.5, 0, 0.8],
-      'business': [-1, 0, 0],
-      'science': [0, 0, 1],
-    };
+    // Award points for answering
+    setPlayerStats(prev => ({
+      ...prev,
+      coins: prev.coins + answer.points,
+      level: Math.floor((prev.coins + answer.points) / 50) + 1
+    }));
     
-    if (dominantPath && pathPositions[dominantPath as keyof typeof pathPositions]) {
-      setStudentPosition(pathPositions[dominantPath as keyof typeof pathPositions] as [number, number, number]);
-    }
+    toast({
+      title: "Great Answer! 🎉",
+      description: `+${answer.points} coins earned!`,
+    });
     
     // Move to next question
     setTimeout(() => {
@@ -66,19 +66,44 @@ const Index = () => {
     setGameState('welcome');
     setCurrentQuestion(1);
     setActivePaths([]);
-    setStudentPosition([0, 0, 0]);
     setQuizResults(null);
+    setPlayerStats({ coins: 0, level: 1, powerUps: [] });
+  };
+
+  const handleCoinCollect = () => {
+    setPlayerStats(prev => ({
+      ...prev,
+      coins: prev.coins + 10
+    }));
+    
+    toast({
+      title: "Coin Collected! 🪙",
+      description: "+10 coins",
+    });
+  };
+
+  const handlePowerUpCollect = (type: string) => {
+    setPlayerStats(prev => ({
+      ...prev,
+      powerUps: [...prev.powerUps, type] as string[]
+    }));
+    
+    toast({
+      title: "Power-up Collected! ⚡",
+      description: `${type} boost activated!`,
+    });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-background/80 relative overflow-hidden">
-      {/* 3D Scene Background */}
+      {/* 3D Game World Background */}
       <div className="fixed inset-0 z-0">
-        <CareerScene3D
+        <GameWorld
           currentQuestion={currentQuestion}
           totalQuestions={5}
           activePaths={activePaths}
-          studentPosition={studentPosition}
+          onCoinCollect={handleCoinCollect}
+          onPowerUpCollect={handlePowerUpCollect}
         />
       </div>
 
@@ -94,10 +119,11 @@ const Index = () => {
                 Discover your ideal career path through an interactive 3D journey
               </p>
               <div className="text-lg space-y-4">
-                <p>🎯 Analyze your skills and interests</p>
-                <p>🚀 Navigate through different career islands</p>
-                <p>✨ Get personalized career recommendations</p>
-                <p>🎮 Gamified experience with visual progress</p>
+                 <p>🎯 Analyze your skills and interests</p>
+                 <p>🚀 Navigate through pixel art career islands</p>
+                 <p>🪙 Collect coins and power-ups along your journey</p>
+                 <p>✨ Get personalized career recommendations</p>
+                 <p>🎮 Fully gamified 3D experience with achievements</p>
               </div>
               <Button 
                 size="lg" 
@@ -130,11 +156,29 @@ const Index = () => {
         )}
       </div>
 
-      {/* Floating Elements */}
-      <div className="fixed top-4 left-4 z-20">
+      {/* Game Stats UI */}
+      <div className="fixed top-4 left-4 z-20 space-y-2">
         <Button variant="outline" onClick={handleRestart}>
           🏠 Home
         </Button>
+        {gameState !== 'welcome' && (
+          <Card className="quiz-card p-4 min-w-[200px]">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Level:</span>
+                <span className="font-bold text-primary">{playerStats.level}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Coins:</span>
+                <span className="font-bold text-warning">🪙 {playerStats.coins}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Power-ups:</span>
+                <span className="font-bold">{playerStats.powerUps.length}</span>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

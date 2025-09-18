@@ -4,9 +4,17 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 
+// Import question images
+import question1Image from '@/assets/question-1.jpg';
+import question2Image from '@/assets/question-2.jpg';
+import question3Image from '@/assets/question-3.jpg';
+import question4Image from '@/assets/question-4.jpg';
+import question5Image from '@/assets/question-5.jpg';
+
 interface Question {
   id: number;
   question: string;
+  image: string;
   options: Option[];
   category: 'skills' | 'interests' | 'strengths';
 }
@@ -23,6 +31,7 @@ const quizQuestions: Question[] = [
     id: 1,
     question: "What type of problems do you enjoy solving the most?",
     category: 'interests',
+    image: question1Image,
     options: [
       { text: "Coding and technical challenges", value: "technical", careerPaths: ["tech", "science"], points: 10 },
       { text: "Helping people with their health", value: "health", careerPaths: ["healthcare"], points: 10 },
@@ -34,6 +43,7 @@ const quizQuestions: Question[] = [
     id: 2,
     question: "Which activity energizes you the most?",
     category: 'strengths',
+    image: question2Image,
     options: [
       { text: "Building apps and websites", value: "building", careerPaths: ["tech"], points: 8 },
       { text: "Researching medical breakthroughs", value: "research", careerPaths: ["healthcare", "science"], points: 8 },
@@ -45,6 +55,7 @@ const quizQuestions: Question[] = [
     id: 3,
     question: "What's your preferred work environment?",
     category: 'skills',
+    image: question3Image,
     options: [
       { text: "Tech startup with cutting-edge tools", value: "startup", careerPaths: ["tech"], points: 9 },
       { text: "Hospital or research lab", value: "medical", careerPaths: ["healthcare", "science"], points: 9 },
@@ -56,6 +67,7 @@ const quizQuestions: Question[] = [
     id: 4,
     question: "Which skill do you want to develop further?",
     category: 'skills',
+    image: question4Image,
     options: [
       { text: "Programming and AI", value: "programming", careerPaths: ["tech"], points: 10 },
       { text: "Medical knowledge and patient care", value: "medical", careerPaths: ["healthcare"], points: 10 },
@@ -67,6 +79,7 @@ const quizQuestions: Question[] = [
     id: 5,
     question: "What motivates you most in your future career?",
     category: 'interests',
+    image: question5Image,
     options: [
       { text: "Innovation and technological advancement", value: "innovation", careerPaths: ["tech", "science"], points: 10 },
       { text: "Saving lives and improving health", value: "health", careerPaths: ["healthcare"], points: 10 },
@@ -184,6 +197,15 @@ export default function QuizInterface({ onAnswerSelect, onQuizComplete, currentQ
 
       {/* Question Card */}
       <Card className="quiz-card p-8 mb-6">
+        {/* Question Image */}
+        <div className="mb-6 rounded-lg overflow-hidden">
+          <img 
+            src={question.image} 
+            alt={`Question ${currentQuestion} illustration`}
+            className="w-full h-48 object-cover rounded-lg"
+          />
+        </div>
+        
         <h2 className="text-2xl font-bold text-center mb-8 text-foreground">
           {question.question}
         </h2>

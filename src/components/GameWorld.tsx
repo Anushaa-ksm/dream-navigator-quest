@@ -3,6 +3,103 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Text, OrbitControls, Sphere, Box } from '@react-three/drei';
 import * as THREE from 'three';
 
+// Tree Component
+const Tree: React.FC<{ position: [number, number, number] }> = ({ position }) => {
+  const treeRef = useRef<THREE.Group>(null);
+  
+  useFrame((state) => {
+    if (treeRef.current) {
+      treeRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+    }
+  });
+
+  return (
+    <group ref={treeRef} position={position}>
+      {/* Tree trunk */}
+      <Box args={[0.4, 2, 0.4]} position={[0, 1, 0]}>
+        <meshStandardMaterial color="#8B4513" />
+      </Box>
+      
+      {/* Tree foliage */}
+      <Sphere args={[1.5, 8, 8]} position={[0, 3, 0]}>
+        <meshStandardMaterial color="#228B22" />
+      </Sphere>
+      <Sphere args={[1.2, 8, 8]} position={[0, 4, 0]}>
+        <meshStandardMaterial color="#32CD32" />
+      </Sphere>
+    </group>
+  );
+};
+
+// Maze Walls Component
+const MazeWalls: React.FC = () => {
+  const mazeLayout = [
+    // Create a simple maze pattern around the center
+    { pos: [-6, 0.5, -3], size: [0.5, 1, 2] },
+    { pos: [-6, 0.5, 3], size: [0.5, 1, 2] },
+    { pos: [6, 0.5, -3], size: [0.5, 1, 2] },
+    { pos: [6, 0.5, 3], size: [0.5, 1, 2] },
+    { pos: [-3, 0.5, -6], size: [2, 1, 0.5] },
+    { pos: [3, 0.5, -6], size: [2, 1, 0.5] },
+    { pos: [-3, 0.5, 6], size: [2, 1, 0.5] },
+    { pos: [3, 0.5, 6], size: [2, 1, 0.5] },
+  ];
+
+  return (
+    <>
+      {mazeLayout.map((wall, i) => (
+        <Box 
+          key={i} 
+          args={wall.size as [number, number, number]} 
+          position={wall.pos as [number, number, number]}
+        >
+          <meshStandardMaterial color="#4c1d95" emissive="#312e81" emissiveIntensity={0.2} />
+        </Box>
+      ))}
+    </>
+  );
+};
+
+// Career Roads Component
+const CareerRoads: React.FC<{ activePaths: string[]; dominantPath: string }> = ({ activePaths, dominantPath }) => {
+  return (
+    <>
+      {careerPaths.map((path) => {
+        const isActive = activePaths.includes(path.name);
+        const isDominant = dominantPath === path.name;
+        
+        // Create road segments from center to career island
+        const segments = Array.from({ length: 15 }, (_, i) => {
+          const progress = (i + 1) / 15;
+          const segmentPos: [number, number, number] = [
+            path.position[0] * progress * 0.8,
+            0.02,
+            path.position[2] * progress * 0.8
+          ];
+          
+          return (
+            <Box
+              key={`road-${path.name}-${i}`}
+              args={[0.8, 0.05, 0.8]}
+              position={segmentPos}
+            >
+              <meshStandardMaterial 
+                color={isActive ? path.color : '#444444'} 
+                emissive={isDominant ? path.color : '#000000'}
+                emissiveIntensity={isDominant ? 0.4 : 0}
+                transparent
+                opacity={isActive ? 0.9 : 0.3}
+              />
+            </Box>
+          );
+        });
+        
+        return <group key={`road-${path.name}`}>{segments}</group>;
+      })}
+    </>
+  );
+};
+
 // Floating cloud component
 const FloatingCloud: React.FC<{ position: [number, number, number] }> = ({ position }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -298,33 +395,34 @@ const Scene: React.FC<GameWorldProps> = ({
       <pointLight position={[-10, 5, -10]} intensity={0.8} color="#c084fc" />
       
       {/* Background Stars */}
-      {Array.from({ length: 50 }).map((_, i) => (
+      {Array.from({ length: 30 }).map((_, i) => (
         <Sphere
           key={i}
-          args={[0.02, 4, 4]}
+          args={[0.03, 4, 4]}
           position={[
-            (Math.random() - 0.5) * 100,
-            (Math.random() - 0.5) * 50 + 20,
-            (Math.random() - 0.5) * 100
+            (Math.random() - 0.5) * 80,
+            (Math.random() - 0.5) * 30 + 25,
+            (Math.random() - 0.5) * 80
           ]}
         >
           <meshBasicMaterial color="#ffffff" />
         </Sphere>
       ))}
 
-      {/* Floating Clouds */}
-      <FloatingCloud position={[-8, 4, -5]} />
-      <FloatingCloud position={[8, 3, -3]} />
-      <FloatingCloud position={[-6, 5, 3]} />
-      <FloatingCloud position={[6, 4, 4]} />
-
-      {/* Decorative Floating Gems */}
-      <FloatingGem position={[-10, 3, -8]} color="#ef4444" type="heart" />
-      <FloatingGem position={[10, 4, -6]} color="#3b82f6" type="diamond" />
-      <FloatingGem position={[-8, 2, 6]} color="#10b981" type="star" />
-      <FloatingGem position={[8, 3, 8]} color="#f59e0b" type="heart" />
-      <FloatingGem position={[-12, 5, 0]} color="#8b5cf6" type="diamond" />
-      <FloatingGem position={[12, 4, 2]} color="#ec4899" type="star" />
+      {/* Maze Walls */}
+      <MazeWalls />
+      
+      {/* Trees around the perimeter */}
+      <Tree position={[-15, 0, -15]} />
+      <Tree position={[15, 0, -15]} />
+      <Tree position={[-15, 0, 15]} />
+      <Tree position={[15, 0, 15]} />
+      <Tree position={[-12, 0, 0]} />
+      <Tree position={[12, 0, 0]} />
+      <Tree position={[0, 0, -12]} />
+      
+      {/* Career Path Roads */}
+      <CareerRoads activePaths={activePaths} dominantPath={dominantPath} />
 
       {/* Student Character */}
       <StudentCharacter 

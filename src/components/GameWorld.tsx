@@ -1,351 +1,259 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
-import { OrbitControls, Text, Plane, Box, Sphere, Float, Environment } from '@react-three/drei';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Text, OrbitControls, Sphere, Box } from '@react-three/drei';
 import * as THREE from 'three';
 
-// Pixel Art Textures (Base64 encoded for immediate use)
-const createPixelTexture = (data: number[][], colors: string[]) => {
-  const size = data.length;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  
-  data.forEach((row, y) => {
-    row.forEach((colorIndex, x) => {
-      if (colorIndex > 0) {
-        ctx.fillStyle = colors[colorIndex - 1];
-        ctx.fillRect(x, y, 1, 1);
-      }
-    });
-  });
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
-  return texture;
-};
-
-// Student Character Sprite Data (16x16 pixel art)
-const studentSpriteData = [
-  [0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0],
-  [0,0,0,0,1,1,2,2,2,2,1,1,0,0,0,0],
-  [0,0,0,1,2,2,2,2,2,2,2,2,1,0,0,0],
-  [0,0,1,2,2,3,2,2,2,2,3,2,2,1,0,0],
-  [0,0,1,2,2,2,2,4,4,2,2,2,2,1,0,0],
-  [0,0,1,2,2,2,4,4,4,4,2,2,2,1,0,0],
-  [0,0,0,1,2,2,2,4,4,2,2,2,1,0,0,0],
-  [0,0,0,0,1,1,2,2,2,2,1,1,0,0,0,0],
-  [0,0,0,0,0,5,5,5,5,5,5,0,0,0,0,0],
-  [0,0,0,0,5,5,6,5,5,6,5,5,0,0,0,0],
-  [0,0,0,5,5,5,5,5,5,5,5,5,5,0,0,0],
-  [0,0,5,5,7,5,5,5,5,5,5,7,5,5,0,0],
-  [0,0,5,5,7,7,5,5,5,5,7,7,5,5,0,0],
-  [0,0,0,5,8,8,5,5,5,5,8,8,5,0,0,0],
-  [0,0,0,0,8,8,0,0,0,0,8,8,0,0,0,0],
-  [0,0,0,0,8,8,0,0,0,0,8,8,0,0,0,0],
-];
-
-const studentColors = ['#8B4513', '#FDB462', '#4169E1', '#000000', '#FFB6C1', '#1E90FF', '#FF6347', '#32CD32'];
-
-// Coin Sprite Data (8x8)
-const coinSpriteData = [
-  [0,0,1,1,1,1,0,0],
-  [0,1,2,2,2,2,1,0],
-  [1,2,3,2,2,3,2,1],
-  [1,2,2,2,2,2,2,1],
-  [1,2,2,2,2,2,2,1],
-  [1,2,3,2,2,3,2,1],
-  [0,1,2,2,2,2,1,0],
-  [0,0,1,1,1,1,0,0],
-];
-
-const coinColors = ['#FFD700', '#FFFF00', '#FFA500'];
-
-// Career Island Sprites (12x12)
-const islandSpriteData = [
-  [0,0,0,0,0,1,1,0,0,0,0,0],
-  [0,0,0,1,1,2,2,1,1,0,0,0],
-  [0,0,1,2,2,2,2,2,2,1,0,0],
-  [0,1,2,2,3,3,3,3,2,2,1,0],
-  [0,1,2,3,3,4,4,3,3,2,1,0],
-  [1,2,2,3,4,4,4,4,3,2,2,1],
-  [1,2,2,3,4,4,4,4,3,2,2,1],
-  [0,1,2,3,3,4,4,3,3,2,1,0],
-  [0,1,2,2,3,3,3,3,2,2,1,0],
-  [0,0,1,2,2,2,2,2,2,1,0,0],
-  [0,0,0,1,1,2,2,1,1,0,0,0],
-  [0,0,0,0,0,1,1,0,0,0,0,0],
-];
-
-const islandColors = ['#32CD32', '#228B22', '#8B4513', '#654321'];
-
-interface PixelCharacterProps {
-  position: [number, number, number];
-  targetPosition: [number, number, number];
-  isMoving: boolean;
-  coins: number;
-  level: number;
-}
-
-function PixelCharacter({ position, targetPosition, isMoving, coins, level }: PixelCharacterProps) {
+// Floating cloud component
+const FloatingCloud: React.FC<{ position: [number, number, number] }> = ({ position }) => {
   const meshRef = useRef<THREE.Group>(null);
-  const [currentPosition, setCurrentPosition] = useState<THREE.Vector3>(new THREE.Vector3(...position));
-  const [bobOffset, setBobOffset] = useState(0);
   
-  const studentTexture = useMemo(() => createPixelTexture(studentSpriteData, studentColors), []);
-
-  useFrame((state, delta) => {
+  useFrame((state) => {
     if (meshRef.current) {
-      // Smooth movement to target
-      if (isMoving) {
-        const target = new THREE.Vector3(...targetPosition);
-        currentPosition.lerp(target, delta * 3);
-        meshRef.current.position.copy(currentPosition);
-      }
-      
-      // Continuous bobbing animation
-      setBobOffset(Math.sin(state.clock.elapsedTime * 4) * 0.1);
-      meshRef.current.position.y = currentPosition.y + bobOffset + 0.5;
-      
-      // Rotation while moving
-      if (isMoving) {
-        meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 8) * 0.1;
-      }
+      meshRef.current.position.x = position[0] + Math.sin(state.clock.elapsedTime * 0.5) * 2;
+      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.3) * 0.5;
     }
   });
+
+  return (
+    <group ref={meshRef} position={position}>
+      <Sphere args={[0.8, 16, 16]} position={[0, 0, 0]}>
+        <meshStandardMaterial color="#ffffff" opacity={0.8} transparent />
+      </Sphere>
+      <Sphere args={[0.6, 16, 16]} position={[-0.5, 0.2, 0]}>
+        <meshStandardMaterial color="#ffffff" opacity={0.8} transparent />
+      </Sphere>
+      <Sphere args={[0.5, 16, 16]} position={[0.5, 0.1, 0]}>
+        <meshStandardMaterial color="#ffffff" opacity={0.8} transparent />
+      </Sphere>
+    </group>
+  );
+};
+
+// Floating decorative gems
+const FloatingGem: React.FC<{ position: [number, number, number]; color: string; type: 'heart' | 'diamond' | 'star' }> = ({ position, color, type }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += 0.02;
+      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2 + position[0]) * 0.3;
+    }
+  });
+
+  return (
+    <mesh ref={meshRef} position={position} scale={0.3}>
+      {type === 'heart' && (
+        <sphereGeometry args={[0.5, 16, 16]} />
+      )}
+      {type === 'diamond' && (
+        <octahedronGeometry args={[0.5, 0]} />
+      )}
+      {type === 'star' && (
+        <boxGeometry args={[0.8, 0.2, 0.2]} />
+      )}
+      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.2} />
+    </mesh>
+  );
+};
+
+// Collectible items
+interface FloatingElementProps {
+  position: [number, number, number];
+  type: 'coin' | 'powerup';
+  onCollect?: () => void;
+}
+
+const FloatingElement: React.FC<FloatingElementProps> = ({ position, type, onCollect }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += 0.02;
+      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.2;
+    }
+  });
+
+  const handleClick = () => {
+    if (onCollect) onCollect();
+  };
+
+  const color = type === 'coin' ? '#FFD700' : '#FF69B4';
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={position}
+      onClick={handleClick}
+      scale={type === 'coin' ? [0.3, 0.1, 0.3] : [0.2, 0.2, 0.2]}
+    >
+      {type === 'coin' ? (
+        <cylinderGeometry args={[0.5, 0.5, 0.2, 8]} />
+      ) : (
+        <boxGeometry args={[1, 1, 1]} />
+      )}
+      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} />
+    </mesh>
+  );
+};
+
+// Student Character
+interface StudentCharacterProps {
+  targetPosition: [number, number, number];
+  activePaths: string[];
+  dominantPath: string;
+}
+
+const StudentCharacter: React.FC<StudentCharacterProps> = ({ targetPosition, activePaths, dominantPath }) => {
+  const meshRef = useRef<THREE.Group>(null);
+  
+  useFrame((state) => {
+    if (meshRef.current) {
+      // Smooth movement towards target
+      meshRef.current.position.lerp(new THREE.Vector3(...targetPosition), 0.1);
+      
+      // Bobbing animation
+      meshRef.current.position.y = targetPosition[1] + Math.sin(state.clock.elapsedTime * 2) * 0.2 + 0.5;
+      
+      // Slight rotation
+      meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime) * 0.1;
+    }
+  });
+
+  const color = dominantPath ? careerPaths.find(p => p.name === dominantPath)?.color || '#3b82f6' : '#3b82f6';
 
   return (
     <group ref={meshRef}>
-      {/* Character Sprite */}
-      <Plane args={[1, 1]} position={[0, 0.5, 0]}>
-        <meshBasicMaterial map={studentTexture} transparent alphaTest={0.1} />
-      </Plane>
-      
-      {/* Graduation Cap */}
-      <Box args={[0.8, 0.1, 0.8]} position={[0, 1.1, 0]}>
-        <meshBasicMaterial color="#1a1a1a" />
+      {/* Student body */}
+      <Box args={[0.5, 1, 0.3]} position={[0, 0.5, 0]}>
+        <meshStandardMaterial color="#8b5cf6" />
       </Box>
       
-      {/* Level Badge */}
-      <Plane args={[0.3, 0.3]} position={[0.7, 1.2, 0]}>
-        <meshBasicMaterial color="#FFD700" />
-      </Plane>
-      <Text
-        fontSize={0.15}
-        position={[0.7, 1.2, 0.01]}
-        color="#000"
-        anchorX="center"
-        anchorY="middle"
-      >
-        {level}
-      </Text>
-      
-      {/* Progress Aura */}
-      <Sphere args={[1.2]} position={[0, 0.5, 0]}>
-        <meshBasicMaterial 
-          color={level > 3 ? "#00FF00" : level > 1 ? "#FFFF00" : "#FF6347"} 
-          transparent 
-          opacity={0.1} 
-        />
+      {/* Student head */}
+      <Sphere args={[0.3, 16, 16]} position={[0, 1.2, 0]}>
+        <meshStandardMaterial color="#fdbf47" />
       </Sphere>
       
-      {/* Floating Coins Display */}
-      <Text
-        fontSize={0.2}
-        position={[0, 1.8, 0]}
-        color="#FFD700"
-        anchorX="center"
-        anchorY="middle"
-      >
-        🪙 {coins}
-      </Text>
-    </group>
-  );
-}
-
-interface GameCoinProps {
-  position: [number, number, number];
-  collected: boolean;
-  onCollect: () => void;
-}
-
-function GameCoin({ position, collected, onCollect }: GameCoinProps) {
-  const meshRef = useRef<THREE.Group>(null);
-  const coinTexture = useMemo(() => createPixelTexture(coinSpriteData, coinColors), []);
-  
-  useFrame((state) => {
-    if (meshRef.current && !collected) {
-      meshRef.current.rotation.y += 0.05;
-      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 3 + position[0]) * 0.2;
-    }
-  });
-
-  if (collected) return null;
-
-  return (
-    <group 
-      ref={meshRef} 
-      position={position}
-      onClick={onCollect}
-    >
-      <Plane args={[0.5, 0.5]}>
-        <meshBasicMaterial map={coinTexture} transparent alphaTest={0.1} />
-      </Plane>
-      <Sphere args={[0.4]} position={[0, 0, 0]}>
-        <meshBasicMaterial color="#FFD700" transparent opacity={0.2} />
+      {/* Graduation cap */}
+      <Box args={[0.6, 0.1, 0.6]} position={[0, 1.5, 0]}>
+        <meshStandardMaterial color="#1f2937" />
+      </Box>
+      
+      {/* Aura indicating progress */}
+      <Sphere args={[1.2, 16, 16]} position={[0, 0.5, 0]}>
+        <meshStandardMaterial color={color} transparent opacity={0.2} />
       </Sphere>
+      
+      {/* Path indicator */}
+      {dominantPath && (
+        <Text
+          fontSize={0.3}
+          position={[0, 2, 0]}
+          color={color}
+          anchorX="center"
+          anchorY="middle"
+        >
+          → {dominantPath.toUpperCase()}
+        </Text>
+      )}
     </group>
   );
-}
+};
 
+// Career Island Component
 interface CareerIslandProps {
   position: [number, number, number];
-  type: 'tech' | 'healthcare' | 'arts' | 'business' | 'science';
+  color: string;
+  name: string;
   isActive: boolean;
-  isUnlocked: boolean;
-  onClick: () => void;
+  isDominant: boolean;
+  score: number;
 }
 
-function CareerIsland({ position, type, isActive, isUnlocked, onClick }: CareerIslandProps) {
+const CareerIsland: React.FC<CareerIslandProps> = ({ position, color, name, isActive, isDominant, score }) => {
   const meshRef = useRef<THREE.Group>(null);
-  const islandTexture = useMemo(() => createPixelTexture(islandSpriteData, islandColors), []);
-  
-  const careerData = {
-    tech: { icon: '💻', color: '#3B82F6', name: 'Tech' },
-    healthcare: { icon: '🏥', color: '#10B981', name: 'Healthcare' },
-    arts: { icon: '🎨', color: '#8B5CF6', name: 'Arts' },
-    business: { icon: '💼', color: '#F59E0B', name: 'Business' },
-    science: { icon: '🔬', color: '#06B6D4', name: 'Science' },
-  };
-  
-  const data = careerData[type];
   
   useFrame((state) => {
     if (meshRef.current) {
-      meshRef.current.rotation.y += isActive ? 0.02 : 0.005;
-      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime + position[0]) * (isActive ? 0.3 : 0.1);
+      meshRef.current.rotation.y += isDominant ? 0.02 : 0.005;
+      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime + position[0]) * (isDominant ? 0.3 : 0.1);
     }
   });
 
-  return (
-    <Float speed={2} rotationIntensity={isActive ? 1 : 0.3} floatIntensity={isActive ? 0.8 : 0.3}>
-      <group 
-        ref={meshRef} 
-        position={position} 
-        onClick={isUnlocked ? onClick : undefined}
-      >
-        {/* Island Base */}
-        <Box args={[2, 0.5, 2]} position={[0, 0, 0]}>
-          <meshBasicMaterial color={isUnlocked ? data.color : '#666'} />
-        </Box>
-        
-        {/* Island Surface Texture */}
-        <Plane args={[2, 2]} position={[0, 0.26, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <meshBasicMaterial 
-            map={islandTexture} 
-            transparent 
-            alphaTest={0.1}
-            opacity={isUnlocked ? 1 : 0.5}
-          />
-        </Plane>
-        
-        {/* Career Icon */}
-        <Text
-          fontSize={1.2}
-          position={[0, 1, 0]}
-          color={isUnlocked ? '#FFFFFF' : '#999'}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {data.icon}
-        </Text>
-        
-        {/* Career Name */}
-        <Text
-          fontSize={0.3}
-          position={[0, 0.5, 0]}
-          color={isUnlocked ? '#FFFFFF' : '#999'}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {data.name}
-        </Text>
-        
-        {/* Unlock Effect */}
-        {isActive && isUnlocked && (
-          <>
-            <Sphere args={[3]} position={[0, 0.5, 0]}>
-              <meshBasicMaterial color={data.color} transparent opacity={0.1} />
-            </Sphere>
-            {/* Particle effects could be added here */}
-          </>
-        )}
-        
-        {/* Lock Icon for locked islands */}
-        {!isUnlocked && (
-          <Text
-            fontSize={0.5}
-            position={[0, -0.3, 0]}
-            color="#666"
-            anchorX="center"
-            anchorY="middle"
-          >
-            🔒
-          </Text>
-        )}
-      </group>
-    </Float>
-  );
-}
-
-interface PowerUpProps {
-  position: [number, number, number];
-  type: 'speed' | 'wisdom' | 'star';
-  collected: boolean;
-  onCollect: () => void;
-}
-
-function PowerUp({ position, type, collected, onCollect }: PowerUpProps) {
-  const meshRef = useRef<THREE.Group>(null);
-  
-  const powerUpData = {
-    speed: { icon: '⚡', color: '#FFFF00' },
-    wisdom: { icon: '📚', color: '#8B5CF6' },
-    star: { icon: '⭐', color: '#FFD700' },
+  const getIcon = (name: string) => {
+    switch (name.toLowerCase()) {
+      case 'tech': return '💻';
+      case 'healthcare': return '🏥';
+      case 'arts': return '🎨';
+      case 'business': return '💼';
+      case 'science': return '🔬';
+      default: return '🎯';
+    }
   };
-  
-  const data = powerUpData[type];
-  
-  useFrame((state) => {
-    if (meshRef.current && !collected) {
-      meshRef.current.rotation.y += 0.1;
-      meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 4 + position[0]) * 0.3;
-    }
-  });
-
-  if (collected) return null;
 
   return (
-    <group 
-      ref={meshRef} 
-      position={position}
-      onClick={onCollect}
-    >
+    <group ref={meshRef} position={position}>
+      {/* Island base */}
+      <Box args={[2.5, 0.5, 2.5]} position={[0, 0, 0]}>
+        <meshStandardMaterial 
+          color={isActive ? color : '#666666'} 
+          emissive={isDominant ? color : '#000000'}
+          emissiveIntensity={isDominant ? 0.3 : 0}
+        />
+      </Box>
+      
+      {/* Career icon */}
       <Text
-        fontSize={0.8}
-        position={[0, 0, 0]}
-        color={data.color}
+        fontSize={1.5}
+        position={[0, 1.5, 0]}
+        color={isActive ? '#ffffff' : '#999999'}
         anchorX="center"
         anchorY="middle"
       >
-        {data.icon}
+        {getIcon(name)}
       </Text>
-      <Sphere args={[0.6]} position={[0, 0, 0]}>
-        <meshBasicMaterial color={data.color} transparent opacity={0.2} />
-      </Sphere>
+      
+      {/* Career name */}
+      <Text
+        fontSize={0.4}
+        position={[0, 0.8, 0]}
+        color={isActive ? '#ffffff' : '#999999'}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {name.toUpperCase()}
+      </Text>
+      
+      {/* Score display for active paths */}
+      {isActive && score > 0 && (
+        <Text
+          fontSize={0.3}
+          position={[0, 0.3, 0]}
+          color="#ffd700"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {score} pts
+        </Text>
+      )}
+      
+      {/* Dominant path effect */}
+      {isDominant && (
+        <Sphere args={[3.5, 16, 16]} position={[0, 0.5, 0]}>
+          <meshStandardMaterial color={color} transparent opacity={0.1} />
+        </Sphere>
+      )}
     </group>
   );
-}
+};
+
+// Career path definitions
+const careerPaths = [
+  { name: 'tech', position: [8, 0, 0] as [number, number, number], color: '#3b82f6' },
+  { name: 'healthcare', position: [4, 0, 6] as [number, number, number], color: '#10b981' },
+  { name: 'arts', position: [-4, 0, 6] as [number, number, number], color: '#8b5cf6' },
+  { name: 'business', position: [-8, 0, 0] as [number, number, number], color: '#f59e0b' },
+  { name: 'science', position: [0, 0, 8] as [number, number, number], color: '#06b6d4' },
+];
 
 interface GameWorldProps {
   currentQuestion: number;
@@ -353,305 +261,126 @@ interface GameWorldProps {
   activePaths: string[];
   dominantPath: string;
   pathScores: Record<string, number>;
-  onPathSelect?: (pathId: string) => void;
   onCoinCollect?: () => void;
   onPowerUpCollect?: (type: string) => void;
 }
 
-export default function GameWorld({ 
-  currentQuestion, 
-  totalQuestions, 
+// Main Scene Component
+const Scene: React.FC<GameWorldProps> = ({
+  currentQuestion,
+  totalQuestions,
   activePaths,
   dominantPath,
   pathScores,
-  onPathSelect,
   onCoinCollect,
   onPowerUpCollect
-}: GameWorldProps) {
-  const [studentPosition, setStudentPosition] = useState<[number, number, number]>([0, 0, 0]);
-  const [coins, setCoins] = useState(0);
-  const [collectedCoins, setCollectedCoins] = useState<Set<string>>(new Set());
-  const [collectedPowerUps, setCollectedPowerUps] = useState<Set<string>>(new Set());
-  const [level, setLevel] = useState(1);
-  
-  // Calculate progress and update student position
-  useEffect(() => {
-    if (dominantPath && careerPaths[dominantPath]) {
-      const progress = currentQuestion / totalQuestions;
-      const pathDirection = careerPaths[dominantPath].direction;
-      const distance = progress * 8; // Maximum distance along path
-      
-      setStudentPosition([
-        pathDirection[0] * distance,
-        0,
-        pathDirection[2] * distance
-      ]);
-    } else {
-      setStudentPosition([0, 0, 0]); // Stay at center if no dominant path
-    }
+}) => {
+  const studentPosition = useMemo(() => {
+    if (!dominantPath) return [0, 0, 0] as [number, number, number];
     
-    setLevel(Math.floor((currentQuestion / totalQuestions) * 5) + 1);
-  }, [currentQuestion, totalQuestions, dominantPath]);
-
-  // Career paths - radiating from center like spokes
-  const careerPaths: Record<string, {
-    id: string; 
-    type: 'tech' | 'healthcare' | 'arts' | 'business' | 'science'; 
-    direction: [number, number, number];
-    goalPosition: [number, number, number];
-    color: string;
-  }> = {
-    'tech': { 
-      id: 'tech', 
-      type: 'tech', 
-      direction: [1, 0, 0], 
-      goalPosition: [10, 0, 0],
-      color: '#3B82F6'
-    },
-    'healthcare': { 
-      id: 'healthcare', 
-      type: 'healthcare', 
-      direction: [0.6, 0, 0.8], 
-      goalPosition: [6, 0, 8],
-      color: '#10B981'
-    },
-    'arts': { 
-      id: 'arts', 
-      type: 'arts', 
-      direction: [-0.6, 0, 0.8], 
-      goalPosition: [-6, 0, 8],
-      color: '#8B5CF6'
-    },
-    'business': { 
-      id: 'business', 
-      type: 'business', 
-      direction: [-1, 0, 0], 
-      goalPosition: [-10, 0, 0],
-      color: '#F59E0B'
-    },
-    'science': { 
-      id: 'science', 
-      type: 'science', 
-      direction: [0, 0, 1], 
-      goalPosition: [0, 0, 10],
-      color: '#06B6D4'
-    },
-  };
-
-  // Collectible coins positions
-  const coinPositions: Array<[number, number, number]> = [
-    [2, 1, 1], [-2, 1, 1], [1, 1, -2], [-1, 1, -2],
-    [4, 1, 2], [-4, 1, 2], [2, 1, 4], [-2, 1, 4],
-    [5, 1, 0], [-5, 1, 0], [0, 1, 5], [3, 1, -3],
-  ];
-
-  // Power-up positions
-  const powerUpPositions = [
-    { id: 'speed1', type: 'speed' as const, position: [3, 1.5, 3] as [number, number, number] },
-    { id: 'wisdom1', type: 'wisdom' as const, position: [-3, 1.5, 3] as [number, number, number] },
-    { id: 'star1', type: 'star' as const, position: [0, 1.5, -4] as [number, number, number] },
-  ];
-
-  const handleCoinCollect = (coinId: string) => {
-    if (!collectedCoins.has(coinId)) {
-      setCollectedCoins(prev => new Set([...prev, coinId]));
-      setCoins(prev => prev + 10);
-      onCoinCollect?.();
-    }
-  };
-
-  const handlePowerUpCollect = (powerUpId: string, type: string) => {
-    if (!collectedPowerUps.has(powerUpId)) {
-      setCollectedPowerUps(prev => new Set([...prev, powerUpId]));
-      onPowerUpCollect?.(type);
-    }
-  };
+    const targetPath = careerPaths.find(path => path.name === dominantPath);
+    if (!targetPath) return [0, 0, 0] as [number, number, number];
+    
+    const progress = Math.min((pathScores[dominantPath] || 0) / 100, 0.8);
+    return [
+      targetPath.position[0] * progress,
+      targetPath.position[1] * progress,
+      targetPath.position[2] * progress
+    ] as [number, number, number];
+  }, [dominantPath, pathScores]);
 
   return (
-    <div className="h-full w-full">
-      <Canvas camera={{ position: [0, 12, 12], fov: 75 }}>
-        <Environment preset="sunset" />
-        
-        {/* Lighting */}
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
-        <pointLight position={[0, 10, 0]} intensity={0.8} color="#FFD700" />
-        
-        {/* Central Platform */}
-        <Box args={[4, 0.2, 4]} position={[0, -0.1, 0]}>
-          <meshBasicMaterial color="#32CD32" />
-        </Box>
-        
-        {/* Game Grid Floor */}
-        {Array.from({ length: 20 }, (_, i) => 
-          Array.from({ length: 20 }, (_, j) => (
-            <Plane 
-              key={`${i}-${j}`}
-              args={[1, 1]} 
-              position={[(i - 10) * 1, -0.05, (j - 10) * 1]} 
-              rotation={[-Math.PI / 2, 0, 0]}
-            >
-              <meshBasicMaterial 
-                color={(i + j) % 2 === 0 ? "#90EE90" : "#228B22"} 
-                transparent 
-                opacity={0.3} 
-              />
-            </Plane>
-          ))
-        )}
-        
-        {/* Student Character */}
-        <PixelCharacter 
-          position={[0, 0, 0]}
-          targetPosition={studentPosition}
-          isMoving={currentQuestion > 0}
-          coins={coins}
-          level={level}
+    <>
+      {/* Atmospheric Lighting */}
+      <ambientLight intensity={0.3} color="#4c1d95" />
+      <pointLight position={[0, 10, 0]} intensity={1.5} color="#8b5cf6" />
+      <pointLight position={[10, 5, 10]} intensity={0.8} color="#a855f7" />
+      <pointLight position={[-10, 5, -10]} intensity={0.8} color="#c084fc" />
+      
+      {/* Background Stars */}
+      {Array.from({ length: 50 }).map((_, i) => (
+        <Sphere
+          key={i}
+          args={[0.02, 4, 4]}
+          position={[
+            (Math.random() - 0.5) * 100,
+            (Math.random() - 0.5) * 50 + 20,
+            (Math.random() - 0.5) * 100
+          ]}
+        >
+          <meshBasicMaterial color="#ffffff" />
+        </Sphere>
+      ))}
+
+      {/* Floating Clouds */}
+      <FloatingCloud position={[-8, 4, -5]} />
+      <FloatingCloud position={[8, 3, -3]} />
+      <FloatingCloud position={[-6, 5, 3]} />
+      <FloatingCloud position={[6, 4, 4]} />
+
+      {/* Decorative Floating Gems */}
+      <FloatingGem position={[-10, 3, -8]} color="#ef4444" type="heart" />
+      <FloatingGem position={[10, 4, -6]} color="#3b82f6" type="diamond" />
+      <FloatingGem position={[-8, 2, 6]} color="#10b981" type="star" />
+      <FloatingGem position={[8, 3, 8]} color="#f59e0b" type="heart" />
+      <FloatingGem position={[-12, 5, 0]} color="#8b5cf6" type="diamond" />
+      <FloatingGem position={[12, 4, 2]} color="#ec4899" type="star" />
+
+      {/* Student Character */}
+      <StudentCharacter 
+        targetPosition={studentPosition}
+        activePaths={activePaths}
+        dominantPath={dominantPath}
+      />
+
+      {/* Career Path Islands */}
+      {careerPaths.map((path, index) => (
+        <CareerIsland
+          key={path.name}
+          position={path.position}
+          color={path.color}
+          name={path.name}
+          isActive={activePaths.includes(path.name)}
+          isDominant={dominantPath === path.name}
+          score={pathScores[path.name] || 0}
         />
-        
-        {/* Career Goal Destinations */}
-        {Object.values(careerPaths).map((path) => (
-          <CareerIsland
-            key={path.id}
-            position={path.goalPosition}
-            type={path.type}
-            isActive={dominantPath === path.id}
-            isUnlocked={activePaths.includes(path.id)}
-            onClick={() => onPathSelect?.(path.id)}
-          />
-        ))}
-        
-        {/* Career Paths - Visual Roads */}
-        {Object.values(careerPaths).map((path) => {
-          const isActive = activePaths.includes(path.id);
-          const isDominant = dominantPath === path.id;
-          const pathIntensity = pathScores[path.id] || 0;
-          
-          // Create path segments
-          const segments = Array.from({ length: 20 }, (_, i) => {
-            const progress = (i + 1) / 20;
-            const position: [number, number, number] = [
-              path.direction[0] * progress * 10,
-              0.05,
-              path.direction[2] * progress * 10
-            ];
-            
-            return (
-              <Box
-                key={`${path.id}-segment-${i}`}
-                args={[0.5, 0.1, 0.5]}
-                position={position}
-              >
-                <meshStandardMaterial 
-                  color={isActive ? path.color : '#666'} 
-                  emissive={isDominant ? path.color : '#000000'}
-                  emissiveIntensity={isDominant ? 0.3 : 0}
-                  transparent
-                  opacity={isActive ? 0.8 : 0.3}
-                />
-              </Box>
-            );
-          });
-          
-          return (
-            <group key={`path-${path.id}`}>
-              {segments}
-              {/* Path Score Display */}
-              {isActive && (
-                <Text
-                  fontSize={0.4}
-                  position={[path.direction[0] * 5, 1.5, path.direction[2] * 5]}
-                  color={path.color}
-                  anchorX="center"
-                  anchorY="middle"
-                >
-                  {path.id.toUpperCase()}: {pathIntensity}pts
-                </Text>
-              )}
-            </group>
-          );
-        })}
-        
-        {/* Collectible Coins */}
-        {coinPositions.map((position, index) => (
-          <GameCoin
-            key={`coin-${index}`}
-            position={position}
-            collected={collectedCoins.has(`coin-${index}`)}
-            onCollect={() => handleCoinCollect(`coin-${index}`)}
-          />
-        ))}
-        
-        {/* Power-ups */}
-        {powerUpPositions.map((powerUp) => (
-          <PowerUp
-            key={powerUp.id}
-            position={powerUp.position}
-            type={powerUp.type}
-            collected={collectedPowerUps.has(powerUp.id)}
-            onCollect={() => handlePowerUpCollect(powerUp.id, powerUp.type)}
-          />
-        ))}
-        
-        {/* Progress Markers on Dominant Path */}
-        {dominantPath && Array.from({ length: currentQuestion }, (_, i) => {
-          const path = careerPaths[dominantPath];
-          const progress = (i + 1) / totalQuestions;
-          const markerPosition: [number, number, number] = [
-            path.direction[0] * progress * 8,
-            0.5,
-            path.direction[2] * progress * 8
-          ];
-          
-          return (
-            <Float key={`marker-${i}`} speed={3} rotationIntensity={0.5}>
-              <Sphere args={[0.2]} position={markerPosition}>
-                <meshStandardMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.5} />
-              </Sphere>
-            </Float>
-          );
-        })}
-        
-        {/* Game UI Elements in 3D Space */}
-        <Text
-          fontSize={0.5}
-          position={[0, 8, -5]}
-          color="#FFD700"
-          anchorX="center"
-          anchorY="middle"
-        >
-          Level {level} • Question {currentQuestion}/{totalQuestions}
-        </Text>
-        
-        <Text
-          fontSize={0.3}
-          position={[0, 7, -5]}
-          color="#FFFFFF"
-          anchorX="center"
-          anchorY="middle"
-        >
-          Choose your path wisely - you're heading towards {dominantPath || 'your future'}!
-        </Text>
-        
-        {/* Starting Platform Sign */}
-        <Text
-          fontSize={0.4}
-          position={[0, 2, 0]}
-          color="#333"
-          anchorX="center"
-          anchorY="middle"
-        >
-          🎓 START YOUR JOURNEY
-        </Text>
-        
-        {/* Controls */}
-        <OrbitControls 
-          enablePan={true} 
-          maxPolarAngle={Math.PI / 2.2} 
-          minDistance={8} 
-          maxDistance={25} 
-        />
+      ))}
+
+      {/* Collectible Elements */}
+      <FloatingElement
+        position={[3, 1, 2]}
+        type="coin"
+        onCollect={onCoinCollect}
+      />
+      <FloatingElement
+        position={[-3, 1.5, -2]}
+        type="powerup"
+        onCollect={() => onPowerUpCollect?.('speed')}
+      />
+      <FloatingElement
+        position={[1, 2, -3]}
+        type="coin"
+        onCollect={onCoinCollect}
+      />
+
+      <OrbitControls enablePan={false} enableZoom={false} enableRotate={false} />
+    </>
+  );
+};
+
+const GameWorld: React.FC<GameWorldProps> = (props) => {
+  return (
+    <div className="w-full h-full">
+      <Canvas
+        camera={{ position: [0, 12, 15], fov: 50 }}
+        style={{ 
+          background: 'linear-gradient(to bottom, #0f0f23 0%, #1e1b4b 30%, #312e81 70%, #4c1d95 100%)',
+        }}
+      >
+        <Scene {...props} />
       </Canvas>
     </div>
   );
-}
+};
+
+export default GameWorld;
